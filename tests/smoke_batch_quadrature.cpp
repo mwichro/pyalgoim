@@ -62,8 +62,9 @@ void requireNear(double actual, double expected, const std::string &message) {
 
 template <int N> void testConstantPositive(int node_count) {
   auto cell = makeConstantCell<N>(node_count, 1.0);
+  algoim::python::QuadratureGeneratorConfig config(N, node_count, 1, "", -1);
   auto result = algoim::python::generateBatchQuadrature(
-      cell.data(), 1, node_count, N,
+      cell.data(), 1, config,
       algoim::python::Inside | algoim::python::Outside |
           algoim::python::Surface);
 
@@ -77,8 +78,9 @@ template <int N> void testConstantPositive(int node_count) {
 
 template <int N> void testConstantNegative(int node_count) {
   auto cell = makeConstantCell<N>(node_count, -1.0);
+  algoim::python::QuadratureGeneratorConfig config(N, node_count, 1, "", -1);
   auto result = algoim::python::generateBatchQuadrature(
-      cell.data(), 1, node_count, N,
+      cell.data(), 1, config,
       algoim::python::Inside | algoim::python::Outside |
           algoim::python::Surface);
 
@@ -93,8 +95,9 @@ template <int N> void testConstantNegative(int node_count) {
 void testStraightLine2D(int node_count) {
   auto cell =
       sampleCell<2>(node_count, [](const auto &x) { return x(0) - 0.5; });
+  algoim::python::QuadratureGeneratorConfig config(2, node_count, 1, "", -1);
   auto result = algoim::python::generateBatchQuadrature(
-      cell.data(), 1, node_count, 2,
+      cell.data(), 1, config,
       algoim::python::Inside | algoim::python::Outside |
           algoim::python::Surface);
 

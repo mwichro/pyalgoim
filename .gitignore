@@ -1,0 +1,66 @@
+# General
+.DS_Store
+Thumbs.db
+
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+pip-delete-this-directory.txt
+
+# Testing and coverage
+.pytest_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+
+# C/C++ build artifacts
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+*.pyd
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+Testing/
+*.dir/
+*.cmake
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Logs and temporary files
+*.log
+tmp/
+tmp*/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local env files
+.env
+.env.local

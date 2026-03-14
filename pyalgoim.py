@@ -55,14 +55,19 @@ def _find_backend() -> Path:
 
 _lib = ctypes.CDLL(str(_find_backend()))
 
+_lib.algoim_generator_create.argtypes = [
+    ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint64
+]
+_lib.algoim_generator_create.restype = ctypes.POINTER(_Handle)
+
+_lib.algoim_generator_free.argtypes = [ctypes.POINTER(_Handle)]
+_lib.algoim_generator_free.restype = None
+
 _lib.algoim_generate_batch_quadrature.argtypes = [
+    ctypes.POINTER(_Handle),
     ctypes.POINTER(ctypes.c_double),
     ctypes.c_uint64,
-    ctypes.c_int,
-    ctypes.c_int,
     ctypes.c_uint32,
-    ctypes.c_char_p,
-    ctypes.c_int,
     ctypes.c_char_p,
     ctypes.c_uint64,
 ]
@@ -97,6 +102,67 @@ def _as_numpy(packed: _PackedQuadrature) -> dict[str, np.ndarray]:
 
     return {"points": points, "weights": weights, "offsets": offsets}
 
+
+
+class QuadratureGenerator:
+    def __init__(self, spatial_dimension: int, node_count: int, basis: str = "monomial", line_rule: str = "gauss-legendre", line_points: int | None = None):
+        self.spatial_dimension = spatial_dimension
+        self.node_count = node_count
+        basis_type = 1 if basis.lower() == "monomial" else 0
+        error_buffer = ctypes.create_string_buffer(1024)
+        
+        self._handle = _lib.algoim_generator_create(
+            int(spatial_dimension),
+            int(node_count),
+            int(basis_type),
+            line_rule.encode("utf-8"),
+            -1 if line_points is None else int(line_points),
+            error_buffer,
+            len(error_buffer)
+        )
+        if not self._handle:
+            raise RuntimeError(error_buffer.value.decode("utf-8"))
+
+    def __del__(self):
+        if hasattr(self, "_handle") and self._handle:
+            _lib.algoim_generator_free(self._handle)
+
+    def __call__(self, cells: Any, flags: int) -> dict[str, Any]:
+        cells_array = np.ascontiguousarray(cells, dtype=np.float64)
+        
+        if cells_array.ndim == 2:
+            batch_size = 1
+        elif cells_array.ndim == 3 and self.spatial_dimension == 3:
+            batch_size = 1
+        elif cells_array.ndim == 3 and self.spatial_dimension == 2:
+            batch_size = int(cells_array.shape[0])
+        elif cells_array.ndim == 4 and self.spatial_dimension == 3:
+            batch_size = int(cells_array.shape[0])
+        else:
+            raise ValueError("Invalid cells shape for the generator's spatial dimension")
+
+        error_buffer = ctypes.create_string_buffer(1024)
+        handle = _lib.algoim_generate_batch_quadrature(
+            self._handle,
+            cells_array.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
+            batch_size,
+            flags,
+            error_buffer,
+            len(error_buffer),
+        )
+        if not handle:
+            raise RuntimeError(error_buffer.value.decode("utf-8"))
+            
+        try:
+            result: dict[str, Any] = {}
+            for name in ["inside", "outside", "surface"]:
+                if getattr(_lib, f"algoim_batch_quadrature_has_{name}")(handle):
+                    packed = _PackedQuadrature()
+                    getattr(_lib, f"algoim_batch_quadrature_get_{name}")(handle, ctypes.byref(packed))
+                    result[name] = _as_numpy(packed)
+            return result
+        finally:
+            _lib.algoim_batch_quadrature_free(handle)
 
 def generate_cell_quadratures(
     cells: Any,
@@ -138,38 +204,5 @@ def generate_cell_quadratures(
         spatial_dimension = 3
         node_count = int(cells_array.shape[1])
 
-    error_buffer = ctypes.create_string_buffer(1024)
-    handle = _lib.algoim_generate_batch_quadrature(
-        cells_array.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
-        batch_size,
-        node_count,
-        spatial_dimension,
-        flags,
-        line_rule.encode("utf-8"),
-        -1 if line_points is None else int(line_points),
-        error_buffer,
-        len(error_buffer),
-    )
-    if not handle:
-        message = error_buffer.value.decode("utf-8") or "pyalgoim batch quadrature generation failed"
-        raise RuntimeError(message)
-
-    try:
-        result: dict[str, Any] = {
-            "spatial_dimension": spatial_dimension,
-            "node_count": node_count,
-            "line_rule": line_rule,
-            "line_points": node_count if line_points is None else int(line_points),
-        }
-
-        for name in ["inside", "outside", "surface"]:
-            if getattr(_lib, f"algoim_batch_quadrature_has_{name}")(handle):
-                packed = _PackedQuadrature()
-                ok = getattr(_lib, f"algoim_batch_quadrature_get_{name}")(handle, ctypes.byref(packed))
-                if not ok:
-                    raise RuntimeError(f"failed to retrieve {name} quadrature data")
-                result[name] = _as_numpy(packed)
-
-        return result
-    finally:
-        _lib.algoim_batch_quadrature_free(handle)
+    gen = QuadratureGenerator(spatial_dimension, node_count, "monomial", line_rule, line_points)
+    return gen(cells_array, flags)

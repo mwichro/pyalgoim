@@ -17,29 +17,35 @@ struct AlgoimPackedQuadrature {
   std::uint64_t offset_count;
 };
 
+struct AlgoimQuadratureGeneratorHandle;
 struct AlgoimBatchQuadratureHandle;
 
+AlgoimQuadratureGeneratorHandle *algoim_generator_create(
+    int spatial_dimension, int node_count, int basis_type,
+    const char *line_rule, int line_points, char *error_buffer,
+    std::uint64_t error_buffer_size);
+
+void algoim_generator_free(AlgoimQuadratureGeneratorHandle *handle);
+
 AlgoimBatchQuadratureHandle *algoim_generate_batch_quadrature(
-    const double *cells, std::uint64_t batch_size, int node_count,
-    int spatial_dimension, std::uint32_t flags, const char *line_rule,
-    int line_points, char *error_buffer, std::uint64_t error_buffer_size);
+    const AlgoimQuadratureGeneratorHandle *generator,
+    const double *cells, std::uint64_t batch_size,
+    std::uint32_t flags, char *error_buffer, std::uint64_t error_buffer_size);
 
 void algoim_batch_quadrature_free(AlgoimBatchQuadratureHandle *handle);
-int algoim_batch_quadrature_has_inside(
-    const AlgoimBatchQuadratureHandle *handle);
-int algoim_batch_quadrature_has_outside(
-    const AlgoimBatchQuadratureHandle *handle);
-int algoim_batch_quadrature_has_surface(
-    const AlgoimBatchQuadratureHandle *handle);
-int algoim_batch_quadrature_get_inside(
-    const AlgoimBatchQuadratureHandle *handle, AlgoimPackedQuadrature *out);
-int algoim_batch_quadrature_get_outside(
-    const AlgoimBatchQuadratureHandle *handle, AlgoimPackedQuadrature *out);
-int algoim_batch_quadrature_get_surface(
-    const AlgoimBatchQuadratureHandle *handle, AlgoimPackedQuadrature *out);
+int algoim_batch_quadrature_has_inside(const AlgoimBatchQuadratureHandle *handle);
+int algoim_batch_quadrature_has_outside(const AlgoimBatchQuadratureHandle *handle);
+int algoim_batch_quadrature_has_surface(const AlgoimBatchQuadratureHandle *handle);
+int algoim_batch_quadrature_get_inside(const AlgoimBatchQuadratureHandle *handle, AlgoimPackedQuadrature *out);
+int algoim_batch_quadrature_get_outside(const AlgoimBatchQuadratureHandle *handle, AlgoimPackedQuadrature *out);
+int algoim_batch_quadrature_get_surface(const AlgoimBatchQuadratureHandle *handle, AlgoimPackedQuadrature *out);
 }
 
 namespace {
+struct QuadratureGeneratorHandleImpl {
+  algoim::python::QuadratureGeneratorConfig config;
+};
+
 struct BatchQuadratureHandleImpl {
   algoim::python::BatchQuadratureResult result;
 };
@@ -48,9 +54,16 @@ BatchQuadratureHandleImpl *unwrap(AlgoimBatchQuadratureHandle *handle) {
   return reinterpret_cast<BatchQuadratureHandleImpl *>(handle);
 }
 
-const BatchQuadratureHandleImpl *
-unwrap(const AlgoimBatchQuadratureHandle *handle) {
+const BatchQuadratureHandleImpl *unwrap(const AlgoimBatchQuadratureHandle *handle) {
   return reinterpret_cast<const BatchQuadratureHandleImpl *>(handle);
+}
+
+QuadratureGeneratorHandleImpl *unwrap(AlgoimQuadratureGeneratorHandle *handle) {
+  return reinterpret_cast<QuadratureGeneratorHandleImpl*>(handle);
+}
+
+const QuadratureGeneratorHandleImpl *unwrap(const AlgoimQuadratureGeneratorHandle *handle) {
+  return reinterpret_cast<const QuadratureGeneratorHandleImpl *>(handle);
 }
 
 void writeError(const std::string &message, char *error_buffer,
@@ -77,20 +90,42 @@ int packQuadrature(const algoim::python::PackedQuadrature &packed,
   out->offset_count = static_cast<std::uint64_t>(packed.offsets.size());
   return 1;
 }
-} // namespace
+}
 
 extern "C" {
-AlgoimBatchQuadratureHandle *algoim_generate_batch_quadrature(
-    const double *cells, std::uint64_t batch_size, int node_count,
-    int spatial_dimension, std::uint32_t flags, const char *line_rule,
-    int line_points, char *error_buffer, std::uint64_t error_buffer_size) {
+
+AlgoimQuadratureGeneratorHandle *algoim_generator_create(
+    int spatial_dimension, int node_count, int basis_type,
+    const char *line_rule, int line_points, char *error_buffer,
+    std::uint64_t error_buffer_size) {
   try {
     std::string resolved_line_rule =
         line_rule != nullptr ? std::string(line_rule) : std::string();
+    int basis = basis_type;
+    auto config = algoim::python::QuadratureGeneratorConfig(spatial_dimension, node_count, basis, resolved_line_rule, line_points);
+    auto *handle = new QuadratureGeneratorHandleImpl{config};
+    return reinterpret_cast<AlgoimQuadratureGeneratorHandle *>(handle);
+  } catch (const std::exception &error) {
+    writeError(error.what(), error_buffer, error_buffer_size);
+    return nullptr;
+  }
+}
+
+void algoim_generator_free(AlgoimQuadratureGeneratorHandle *handle) {
+  delete unwrap(handle);
+}
+
+AlgoimBatchQuadratureHandle *algoim_generate_batch_quadrature(
+    const AlgoimQuadratureGeneratorHandle *generator,
+    const double *cells, std::uint64_t batch_size,
+    std::uint32_t flags, char *error_buffer, std::uint64_t error_buffer_size) {
+  try {
+    const auto* gen = unwrap(generator);
+    if (!gen) throw std::invalid_argument("Invalid generator handle");
+
     auto *handle =
         new BatchQuadratureHandleImpl{algoim::python::generateBatchQuadrature(
-            cells, batch_size, node_count, spatial_dimension, flags,
-            resolved_line_rule, line_points)};
+            cells, batch_size, gen->config, flags)};
     return reinterpret_cast<AlgoimBatchQuadratureHandle *>(handle);
   } catch (const std::exception &error) {
     writeError(error.what(), error_buffer, error_buffer_size);
@@ -104,37 +139,32 @@ void algoim_batch_quadrature_free(AlgoimBatchQuadratureHandle *handle) {
 
 int algoim_batch_quadrature_has_inside(
     const AlgoimBatchQuadratureHandle *handle) {
-  return handle != nullptr && unwrap(handle)->result.has_inside ? 1 : 0;
+  return unwrap(handle)->result.has_inside ? 1 : 0;
 }
 
 int algoim_batch_quadrature_has_outside(
     const AlgoimBatchQuadratureHandle *handle) {
-  return handle != nullptr && unwrap(handle)->result.has_outside ? 1 : 0;
+  return unwrap(handle)->result.has_outside ? 1 : 0;
 }
 
 int algoim_batch_quadrature_has_surface(
     const AlgoimBatchQuadratureHandle *handle) {
-  return handle != nullptr && unwrap(handle)->result.has_surface ? 1 : 0;
+  return unwrap(handle)->result.has_surface ? 1 : 0;
 }
 
 int algoim_batch_quadrature_get_inside(
     const AlgoimBatchQuadratureHandle *handle, AlgoimPackedQuadrature *out) {
-  return handle != nullptr && unwrap(handle)->result.has_inside
-             ? packQuadrature(unwrap(handle)->result.inside, out)
-             : 0;
+  return packQuadrature(unwrap(handle)->result.inside, out);
 }
 
 int algoim_batch_quadrature_get_outside(
     const AlgoimBatchQuadratureHandle *handle, AlgoimPackedQuadrature *out) {
-  return handle != nullptr && unwrap(handle)->result.has_outside
-             ? packQuadrature(unwrap(handle)->result.outside, out)
-             : 0;
+  return packQuadrature(unwrap(handle)->result.outside, out);
 }
 
 int algoim_batch_quadrature_get_surface(
     const AlgoimBatchQuadratureHandle *handle, AlgoimPackedQuadrature *out) {
-  return handle != nullptr && unwrap(handle)->result.has_surface
-             ? packQuadrature(unwrap(handle)->result.surface, out)
-             : 0;
+  return packQuadrature(unwrap(handle)->result.surface, out);
 }
+
 }
