@@ -130,16 +130,12 @@ class QuadratureGenerator:
     def __call__(self, cells: Any, flags: int) -> dict[str, Any]:
         cells_array = np.ascontiguousarray(cells, dtype=np.float64)
         
-        if cells_array.ndim == 2:
+        if cells_array.ndim == self.spatial_dimension:
             batch_size = 1
-        elif cells_array.ndim == 3 and self.spatial_dimension == 3:
-            batch_size = 1
-        elif cells_array.ndim == 3 and self.spatial_dimension == 2:
-            batch_size = int(cells_array.shape[0])
-        elif cells_array.ndim == 4 and self.spatial_dimension == 3:
+        elif cells_array.ndim == self.spatial_dimension + 1:
             batch_size = int(cells_array.shape[0])
         else:
-            raise ValueError("Invalid cells shape for the generator's spatial dimension")
+            raise ValueError(f"Invalid cells shape for {self.spatial_dimension}D generator (expected {self.spatial_dimension}D or {self.spatial_dimension + 1}D array)")
 
         error_buffer = ctypes.create_string_buffer(1024)
         handle = _lib.algoim_generate_batch_quadrature(

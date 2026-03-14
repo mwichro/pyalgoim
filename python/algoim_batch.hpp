@@ -410,8 +410,11 @@ public:
     if (config.spatial_dimension == 3)
       return generateBatchQuadratureImpl<3>(cells, batch_size, config, flags,
                                             q);
+    if (config.spatial_dimension == 4)
+      return generateBatchQuadratureImpl<4>(cells, batch_size, config, flags,
+                                            q);
 
-    throw std::invalid_argument("spatial_dimension must be 2 or 3");
+    throw std::invalid_argument("spatial_dimension must be 2, 3 or 4");
   }
 } // namespace python
 } // namespace algoim
