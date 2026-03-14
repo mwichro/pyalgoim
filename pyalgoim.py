@@ -37,10 +37,10 @@ def _find_backend() -> Path:
     root = Path(__file__).resolve().parent
     candidates.extend(
         [
-            root / "build" / "pyalgoim_backend.so",
-            root / "build" / "algoim_batch_backend.so",
             root / "pyalgoim_backend.so",
             root / "algoim_batch_backend.so",
+            root / "build" / "pyalgoim_backend.so",
+            root / "build" / "algoim_batch_backend.so",
         ]
     )
 

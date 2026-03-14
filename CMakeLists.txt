@@ -10,7 +10,7 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 enable_testing()
 
-add_library(pyalgoim_backend SHARED python/algoim_pybind.cpp)
+add_library(pyalgoim_backend MODULE python/algoim_pybind.cpp)
 target_include_directories(
     pyalgoim_backend
     PRIVATE
@@ -18,7 +18,18 @@ target_include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}/python
         ${CMAKE_CURRENT_SOURCE_DIR}/algoim
 )
-set_target_properties(pyalgoim_backend PROPERTIES PREFIX "" OUTPUT_NAME "pyalgoim_backend")
+set_target_properties(pyalgoim_backend PROPERTIES 
+    PREFIX "" 
+    OUTPUT_NAME "pyalgoim_backend"
+)
+
+install(TARGETS pyalgoim_backend
+        DESTINATION .
+        COMPONENT python_bindings)
+
+install(FILES pyalgoim.py
+        DESTINATION .
+        COMPONENT python_bindings)
 
 add_executable(algoim_batch_smoke tests/smoke_batch_quadrature.cpp)
 target_include_directories(algoim_batch_smoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/python ${CMAKE_CURRENT_SOURCE_DIR}/algoim)

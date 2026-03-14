@@ -1,0 +1,34 @@
+[build-system]
+requires = ["scikit-build-core", "setuptools"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "pyalgoim"
+version = "0.0.1"
+description = "Python wrapper for Algoim quadrature backend"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Algoim Contributors"}
+]
+dependencies = [
+    "numpy",
+]
+
+[tool.scikit-build]
+cmake.version = ">=3.18"
+build-dir = "build/{wheel_tag}"
+install.components = ["python_bindings"]
+
+cmake.args = [
+    "-DALGOIM_BUILD_PYTHON=ON",
+]
+
+[tool.cibuildwheel]
+build-frontend = "build"
+test-requires = ["pytest", "numpy"]
+test-command = "pytest {project}/tests"
+
+[tool.cibuildwheel.macos]
+archs = ["x86_64", "arm64"]
