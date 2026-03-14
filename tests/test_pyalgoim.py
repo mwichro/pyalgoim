@@ -99,9 +99,9 @@ class TestPyAlgoim:
             volume = self.get_inside_volume(quad)
             surface_area = np.sum(quad["surface"]["weights"])
             tol = 0.1 / nc
-            self.check_approx(volume, exact_area, tol)
+            self.check_approx(volume, exact_area, tol**2)
             # Surface measure is a bit more sensitive, but let's check it converges too.
-            self.check_approx(surface_area, exact_perimeter, tol * 2.0)
+            self.check_approx(surface_area, exact_perimeter, tol**2 * 2.0)
 
     def test_sphere_approx_3d_all(self):
         R = 0.4
@@ -111,8 +111,8 @@ class TestPyAlgoim:
             samples = sample_3d(nc, lambda x, y, z: ((x - 0.5)**2 + (y - 0.5)**2 + (z - 0.5)**2) - R**2)
             quad = gen(samples, pyalgoim.INSIDE)
             volume = self.get_inside_volume(quad)
-            tol = 0.2 / nc
-            self.check_approx(volume, exact_vol, tol)
+            tol = 0.1 / nc
+            self.check_approx(volume, exact_vol, tol**2)
 
 if __name__ == "__main__":
     TestPyAlgoim().run_tests()
